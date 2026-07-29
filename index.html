@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오늘의 하루는 어땠나요? | AI 감정 일기장 & 캘린더</title>
+    <!-- 구글 폰트: 고운 바탕 (Gowun Batang) 및 Noto Sans KR 적용 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- 스타일시트 연결 -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- 🔥 Firebase SDK (Compat 웹 버전) CDN 추가 -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <!-- 배경 포근한 빛 방울 오라 효과 -->
+    <div class="background-decor">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="container">
+        <!-- 메인 헤더 영역 -->
+        <header class="header">
+            <div class="sub-badge">🌿 감정 분석 마음 일기 & 캘린더 (Firebase 클라우드 연동)</div>
+            <h1 class="main-title">오늘의 하루는 어땠나요?</h1>
+            <p class="subtitle">오늘 느꼈던 감정과 이야기를 편하게 적어주세요. AI가 마음을 들려드릴게요.</p>
+            
+            <!-- 탭 네비게이션 (일기 작성 / 감정 캘린더) -->
+            <nav class="tab-nav">
+                <button type="button" id="tab-write-btn" class="tab-btn active">
+                    ✍️ 일기 작성하기
+                </button>
+                <button type="button" id="tab-calendar-btn" class="tab-btn">
+                    📅 감정 캘린더
+                </button>
+            </nav>
+        </header>
+
+        <!-- 1. 메인 일기 작성 뷰 (기본 표시) -->
+        <main id="view-write" class="view-section active">
+            <div class="diary-card">
+                <!-- 일기 작성 날짜 선택 바 -->
+                <div class="date-selector-bar">
+                    <div class="date-picker-group">
+                        <label for="entry-date-picker" class="date-label">📅 일기 작성 날짜:</label>
+                        <input type="date" id="entry-date-picker" class="date-picker-input">
+                    </div>
+                    <button type="button" id="set-today-btn" class="today-btn">오늘 날짜로</button>
+                </div>
+
+                <!-- 일기 입력 영역 -->
+                <div class="input-section">
+                    <div class="input-header">
+                        <label for="diary-input" class="input-label">✍️ 일기 기록하기</label>
+                        <button type="button" id="sample-btn" class="sample-btn" title="예시 일기 채우기">
+                            💡 예시 일기 써보기
+                        </button>
+                    </div>
+
+                    <div class="textarea-wrapper">
+                        <textarea 
+                            id="diary-input" 
+                            class="diary-textarea" 
+                            placeholder="이날 있었던 일이나 느꼈던 생각, 감정들을 자유롭게 적어보세요...&#10;(예: 오랫동안 준비했던 일을 끝마쳐서 기분이 참 유쾌하고 좋았다.)"
+                            rows="8"
+                        ></textarea>
+                        
+                        <!-- 음성 인식 활성화 시 나타나는 오버레이 안내 -->
+                        <div id="voice-indicator" class="voice-indicator hidden">
+                            <span class="pulse-dot"></span>
+                            <span id="voice-status-text">음성을 듣고 있습니다... 편하게 말씀하세요.</span>
+                        </div>
+                    </div>
+
+                    <!-- 입력창 하단 상태 바 (글자 수 표시) -->
+                    <div class="input-footer">
+                        <span class="char-counter"><span id="char-count">0</span> 글자</span>
+                        <button type="button" id="clear-btn" class="clear-btn">전체 지우기</button>
+                    </div>
+                </div>
+
+                <!-- 버튼 영역 -->
+                <div class="button-group">
+                    <!-- 🎙️ 음성으로 입력하기 버튼 -->
+                    <button type="button" id="voice-btn" class="btn btn-voice">
+                        <span class="btn-icon">🎙️</span>
+                        <span id="voice-btn-text">음성으로 입력하기</span>
+                    </button>
+
+                    <!-- ✨ 분석 요청하기 버튼 -->
+                    <button type="button" id="analyze-btn" class="btn btn-analyze">
+                        <span class="btn-icon">✨</span>
+                        <span>분석 요청하기</span>
+                    </button>
+                </div>
+
+                <!-- AI 답변 박스 영역 -->
+                <section class="ai-response-section">
+                    <div class="section-title-wrapper">
+                        <h2 class="ai-section-title">🤖 AI의 답변</h2>
+                        <span id="analysis-status-tag" class="status-tag">대기 중</span>
+                    </div>
+
+                    <!-- AI 결과가 표시될 안내 박스 (회색/파스텔톤 배경) -->
+                    <div id="ai-response-box" class="ai-response-box">
+                        <!-- 기본 대기 상태 문구 -->
+                        <div id="ai-default-message" class="ai-default-message">
+                            <div class="placeholder-icon">💭</div>
+                            <p class="default-text">여기에 AI의 답변이 표시됩니다.</p>
+                            <p class="default-subtext">일기를 작성하고 '분석 요청하기' 버튼을 누르면 Firebase 클라우드에 자동 저장됩니다.</p>
+                        </div>
+
+                        <!-- 로딩 상태 애니메이션 (기본 숨김) -->
+                        <div id="ai-loading" class="ai-loading hidden">
+                            <div class="spinner">
+                                <div class="double-bounce1"></div>
+                                <div class="double-bounce2"></div>
+                            </div>
+                            <p class="loading-text">일기에 담긴 당신의 소중한 마음을 읽고 있어요...</p>
+                        </div>
+
+                        <!-- 분석 결과 표시 영역 (기본 숨김) -->
+                        <div id="ai-result" class="ai-result hidden">
+                            <div class="emotion-header">
+                                <span class="emotion-badge-label">분석된 대표 감정</span>
+                                <div id="emotion-tag" class="emotion-tag">
+                                    <span id="emotion-emoji" class="emotion-emoji">🌿</span>
+                                    <span id="emotion-name" class="emotion-name">평온</span>
+                                </div>
+                            </div>
+                            <hr class="divider">
+                            <div class="message-content">
+                                <p id="ai-message-text" class="ai-message-text">
+                                    <!-- AI의 2~3줄 응원/위로 메시지가 동적으로 들어오는 곳 -->
+                                </p>
+                            </div>
+                            <div class="save-notice">
+                                <span id="save-notice-text">🔥 Firebase 클라우드 캘린더에 성공적으로 저장되었습니다!</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- 2. 감정 캘린더 뷰 (탭 전환 시 표시) -->
+        <section id="view-calendar" class="view-section hidden">
+            <div class="calendar-card">
+                <!-- 달력 상단 네비게이션 (연/월 컨트롤) -->
+                <div class="calendar-header">
+                    <button type="button" id="prev-month-btn" class="month-nav-btn">&lt;</button>
+                    <h2 id="calendar-title" class="calendar-title">2026년 7월</h2>
+                    <button type="button" id="next-month-btn" class="month-nav-btn">&gt;</button>
+                </div>
+
+                <!-- 캘린더 렌더링 영역 -->
+                <div class="calendar-wrapper">
+                    <!-- 요일 표시 -->
+                    <div class="weekdays-grid">
+                        <div class="weekday sun">일</div>
+                        <div class="weekday">월</div>
+                        <div class="weekday">화</div>
+                        <div class="weekday">수</div>
+                        <div class="weekday">목</div>
+                        <div class="weekday">금</div>
+                        <div class="weekday sat">토</div>
+                    </div>
+                    <!-- 날짜 그리드 (JS로 동적 생성) -->
+                    <div id="calendar-days-grid" class="days-grid"></div>
+                </div>
+
+                <!-- 캘린더 범례 안내 -->
+                <div class="calendar-legend">
+                    <div class="legend-item">
+                        <span class="legend-emoji">😃</span>
+                        <span>첫 작성 일기의 감정 이모지</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dots">••</span>
+                        <span>작성한 일기 개수 (점)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 푸터 -->
+        <footer class="footer">
+            <p>© 2026 AI 마음일기 | Firebase Cloud 연동</p>
+        </footer>
+    </div>
+
+    <!-- 날짜별 일기 타임라인 모달 팝업 -->
+    <div id="diary-modal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <span id="modal-date-badge" class="modal-date-badge">2026-07-29</span>
+                    <h3 class="modal-title">작성했던 마음 일기</h3>
+                </div>
+                <button type="button" id="close-modal-btn" class="modal-close-btn">&times;</button>
+            </div>
+            
+            <!-- 모달 상단 '이 날짜에 새 일기 쓰기' 바로가기 버튼 -->
+            <div class="modal-action-bar">
+                <button type="button" id="write-on-this-date-btn" class="write-on-date-btn">
+                    ✍️ 이 날짜에 새 일기 쓰기
+                </button>
+            </div>
+
+            <!-- 날짜별 작성 일기 타임라인 목록이 들어오는 곳 -->
+            <div id="modal-diary-list" class="modal-body">
+                <!-- 동적으로 JS에서 일기 타임라인 카드가 삽입됩니다 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 자바스크립트 파일 -->
+    <script src="app.js"></script>
+</body>
+</html>
